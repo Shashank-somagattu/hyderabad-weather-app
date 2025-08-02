@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hyderabad Weather</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #1e3a8a, #1e40af);
+      min-height: 100vh;
+      transition: background 0.5s ease;
+    }
+    .weather-card {
+      background-color: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+      transition: all 0.3s ease;
+    }
+    .weather-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.3);
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease-in-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .temperature-graph {
+      height: 100px;
+      display: flex;
+      align-items: flex-end;
+      padding-top: 1rem;
+    }
+    .temperature-bar {
+      flex-grow: 1;
+      background: linear-gradient(to top, #3b82f6, #93c5fd);
+      border-radius: 4px 4px 0 0;
+      margin: 0 2px;
+      position: relative;
+      transition: height 0.5s ease;
+    }
+    .temperature-label {
+      position: absolute;
+      top: -25px;
+      width: 100%;
+      text-align: center;
+      font-size: 0.75rem;
+    }
+    .time-label {
+      text-align: center;
+      font-size: 0.75rem;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body class="text-white flex items-center justify-center p-4">
+
+  <main class="w-full max-w-4xl space-y-6">
+    
+    <header class="text-center">
+      <h1 class="text-4xl sm:text-5xl font-bold text-yellow-300 mb-2">
+        <i class="fas fa-sun mr-2"></i>Hyderabad Weather
+      </h1>
+      <p class="text-gray-300">Real-time weather updates and 5-day forecast</p>
+    </header>
+
+    <section class="space-y-4">
+      <form id="weather-form" class="flex flex-col sm:flex-row gap-3">
+        <div class="relative flex-grow">
+          <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+          <input 
+            type="text" 
+            id="city-input" 
+            placeholder="Enter city name" 
+            required
+            class="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg 
+                   focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white placeholder-gray-500"
+            value="Hyderabad"
+          >
+        </div>
+        <button 
+          type="submit" 
+          class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-lg 
+                 transition-colors duration-300 flex items-center justify-center gap-2"
+        >
+          <i class="fas fa-cloud-sun"></i> Get Weather
+        </button>
+      </form>
+
+      <button 
+        id="geo-btn" 
+        class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg w-full 
+               flex items-center justify-center gap-2 transition-colors duration-300"
+      >
+        <i class="fas fa-location-arrow"></i> Use My Location
+      </button>
+    </section>
+
+    <section id="weather-display" class="weather-card rounded-xl p-6 space-y-4 fade-in">
+      <div class="text-center py-8">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+        <p class="text-lg">Loading Hyderabad weather data...</p>
+      </div>
+    </section>
+
+    <section id="hourly-forecast" class="weather-card rounded-xl p-6 hidden">
+      <h3 class="text-xl font-bold mb-4">Hourly Forecast</h3>
+      <div id="hourly-graph" class="temperature-graph"></div>
+      <div id="hourly-labels" class="flex"></div>
+    </section>
+
+    <section id="forecast-display" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div class="col-span-full text-center py-8">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+        <p>Loading forecast data...</p>
+      </div>
+    </section>
+
+    <div id="message-box" class="hidden p-4 rounded-lg text-center font-medium"></div>
+
+    <footer class="text-center text-gray-400 text-sm pt-4 border-t border-gray-700">
+      <p>Powered by 
+        <a href="https://openweathermap.org/" target="_blank" class="hover:text-white underline">
+          OpenWeatherMap API
+        </a>
+      </p>
+      <p class="mt-1 text-xs">Last updated: <span id="update-time">-</span></p>
+    </footer>
+  </main>
+
+  <script>
+    const API_KEY = '65df346bb44bf710aa8619b35ea72225';
+    
+    const weatherForm = document.getElementById('weather-form');
+    const cityInput = document.getElementById('city-input');
+    const geoBtn = document.getElementById('geo-btn');
+    const weatherDisplay = document.getElementById('weather-display');
+    const forecastDisplay = document.getElementById('forecast-display');
+    const hourlyForecast = document.getElementById('hourly-forecast');
+    const hourlyGraph = document.getElementById('hourly-graph');
+    const hourlyLabels = document.getElementById('hourly-labels');
+    const messageBox = document.getElementById('message-box');
+    const updateTime = document.getElementById('update-time');
+    
+    const weatherIcons = {
+      '01d': 'fas fa-sun',
+      '01n': 'fas fa-moon',
+      '02d': 'fas fa-cloud-sun',
+      '02n': 'fas fa-cloud-moon',
+      '03d': 'fas fa-cloud',
+      '03n': 'fas fa-cloud',
+      '04d': 'fas fa-cloud-meatball',
+      '04n': 'fas fa-cloud-meatball',
+      '09d': 'fas fa-cloud-rain',
+      '09n': 'fas fa-cloud-rain',
+      '10d': 'fas fa-cloud-sun-rain',
+      '10n': 'fas fa-cloud-moon-rain',
+      '11d': 'fas fa-bolt',
+      '11n': 'fas fa-bolt',
+      '13d': 'fas fa-snowflake',
+      '13n': 'fas fa-snowflake',
+      '50d': 'fas fa-smog',
+      '50n': 'fas fa-smog'
+    };
+    
+    // Initialize app
+    document.addEventListener('DOMContentLoaded', () => {
+      getWeatherData('Hyderabad');
+      updateTime.textContent = new Date().toLocaleString();
+    });
+    
+    // Event Listeners
+    weatherForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const city = cityInput.value.trim();
+      if (city) {
+        getWeatherData(city);
+      }
+    });
+    
+    geoBtn.addEventListener('click', () => {
+      if (navigator.geolocation) {
+        geoBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Locating...';
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            getWeatherByCoords(latitude, longitude);
+            geoBtn.innerHTML = '<i class="fas fa-location-arrow"></i> Use My Location';
+          },
+          (error) => {
+            showMessage('Geolocation access denied. Please enter a city manually.', 'error');
+            geoBtn.innerHTML = '<i class="fas fa-location-arrow"></i> Use My Location';
+          }
+        );
+      } else {
+        showMessage('Geolocation is not supported by your browser.', 'error');
+      }
+    });
+    
+    // API Functions
+    async function getWeatherData(city) {
+      try {
+        showLoading();
+        
+        const [currentResponse, forecastResponse] = await Promise.all([
+          fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${API_KEY}`),
+          fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=metric&appid=${API_KEY}`)
+        ]);
+        
+        if (!currentResponse.ok) throw new Error('City not found');
+        if (!forecastResponse.ok) throw new Error('Forecast data unavailable');
+        
+        const currentData = await currentResponse.json();
+        const forecastData = await forecastResponse.json();
+        
+        displayWeather(currentData);
+        displayForecast(forecastData);
+        displayHourlyForecast(forecastData);
+        
+        updateTime.textContent = new Date().toLocaleString();
+        
+      } catch (error) {
+        showMessage(error.message || 'Failed to fetch weather data', 'error');
+      }
+    }
+    
+    async function getWeatherByCoords(lat, lon) {
+      try {
+        showLoading();
+        
+        const [currentResponse, forecastResponse] = await Promise.all([
+          fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`),
+          fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`)
+        ]);
+        
+        const currentData = await currentResponse.json();
+        const forecastData = await forecastResponse.json();
+        
+        cityInput.value = currentData.name;
+        displayWeather(currentData);
+        displayForecast(forecastData);
+        displayHourlyForecast(forecastData);
+        
+        updateTime.textContent = new Date().toLocaleString();
+        
+      } catch (error) {
+        showMessage('Failed to fetch weather data', 'error');
+      }
+    }
+    
+    // Display Functions
+    function displayWeather(data) {
+      const { name, main, weather, wind, sys, dt, visibility } = data;
+      const iconClass = weatherIcons[weather[0].icon] || 'fas fa-cloud';
+      const date = new Date(dt * 1000).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      weatherDisplay.innerHTML = `
+        <div class="flex flex-col sm:flex-row items-center justify-between">
+          <div class="text-center sm:text-left mb-4 sm:mb-0">
+            <h2 class="text-2xl font-bold">${name}, ${sys.country}</h2>
+            <p class="text-gray-300">${date}</p>
+            <p class="text-xl mt-2 capitalize flex items-center justify-center sm:justify-start gap-2">
+              <i class="${iconClass}"></i> ${weather[0].description}
+            </p>
+          </div>
+          <div class="flex items-center">
+            <span class="text-5xl font-bold mr-2">${Math.round(main.temp)}°C</span>
+            <div class="text-left">
+              <p class="text-sm">H: ${Math.round(main.temp_max)}° L: ${Math.round(main.temp_min)}°</p>
+              <p class="text-sm">Feels like: ${Math.round(main.feels_like)}°</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-gray-700">
+          <div class="text-center p-3 bg-gray-800/30 rounded-lg">
+            <p class="text-gray-300"><i class="fas fa-tint mr-2"></i>Humidity</p>
+            <p class="text-xl font-semibold">${main.humidity}%</p>
+          </div>
+          <div class="text-center p-3 bg-gray-800/30 rounded-lg">
+            <p class="text-gray-300"><i class="fas fa-wind mr-2"></i>Wind</p>
+            <p class="text-xl font-semibold">${wind.speed} m/s</p>
+          </div>
+          <div class="text-center p-3 bg-gray-800/30 rounded-lg">
+            <p class="text-gray-300"><i class="fas fa-compress-alt mr-2"></i>Pressure</p>
+            <p class="text-xl font-semibold">${main.pressure} hPa</p>
+          </div>
+          <div class="text-center p-3 bg-gray-800/30 rounded-lg">
+            <p class="text-gray-300"><i class="fas fa-eye mr-2"></i>Visibility</p>
+            <p class="text-xl font-semibold">${(visibility/1000).toFixed(1)} km</p>
+          </div>
+        </div>
+      `;
+      
+      weatherDisplay.classList.add('fade-in');
+    }
+    
+    function displayForecast(data) {
+      const dailyForecasts = {};
+      data.list.forEach(item => {
+        const date = new Date(item.dt * 1000).toLocaleDateString();
+        if (!dailyForecasts[date]) {
+          dailyForecasts[date] = item;
+        }
+      });
+      
+      const forecastDays = Object.values(dailyForecasts).slice(1, 6);
+      
+      forecastDisplay.innerHTML = forecastDays.map(day => {
+        const date = new Date(day.dt * 1000).toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric'
+        });
+        const iconClass = weatherIcons[day.weather[0].icon] || 'fas fa-cloud';
+        
+        return `
+          <div class="weather-card rounded-lg p-4 text-center fade-in">
+            <p class="font-semibold">${date}</p>
+            <i class="${iconClass} text-3xl my-3"></i>
+            <p class="text-xl font-bold">${Math.round(day.main.temp)}°C</p>
+            <p class="text-sm capitalize text-gray-300">${day.weather[0].description}</p>
+            <div class="flex justify-between mt-3 text-sm bg-gray-800/30 rounded-full px-3 py-1">
+              <span><i class="fas fa-temperature-high mr-1"></i>${Math.round(day.main.temp_max)}°</span>
+              <span><i class="fas fa-temperature-low mr-1"></i>${Math.round(day.main.temp_min)}°</span>
+            </div>
+            <div class="flex justify-between mt-2 text-xs">
+              <span><i class="fas fa-tint mr-1"></i>${day.main.humidity}%</span>
+              <span><i class="fas fa-wind mr-1"></i>${day.wind.speed} m/s</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    function displayHourlyForecast(data) {
+      // Show only the next 12 hours (3-hour intervals)
+      const hourlyData = data.list.slice(0, 4);
+      
+      // Clear previous data
+      hourlyGraph.innerHTML = '';
+      hourlyLabels.innerHTML = '';
+      
+      // Find min and max temps for scaling
+      const temps = hourlyData.map(item => item.main.temp);
+      const minTemp = Math.min(...temps);
+      const maxTemp = Math.max(...temps);
+      const tempRange = maxTemp - minTemp || 1; // Avoid division by zero
+      
+      // Create bars for each hour
+      hourlyData.forEach(item => {
+        const time = new Date(item.dt * 1000).toLocaleTimeString([], { hour: '2-digit' });
+        const temp = item.main.temp;
+        const iconClass = weatherIcons[item.weather[0].icon] || 'fas fa-cloud';
+        
+        // Calculate bar height (0-100%)
+        const barHeight = ((temp - minTemp) / tempRange) * 80 + 20;
+        
+        const bar = document.createElement('div');
+        bar.className = 'temperature-bar';
+        bar.style.height = `${barHeight}%`;
+        bar.innerHTML = `
+          <div class="temperature-label">${Math.round(temp)}°</div>
+          <div class="absolute bottom-0 left-0 right-0 flex justify-center">
+            <i class="${iconClass} text-sm"></i>
+          </div>
+        `;
+        hourlyGraph.appendChild(bar);
+        
+        const timeLabel = document.createElement('div');
+        timeLabel.className = 'time-label';
+        timeLabel.textContent = time;
+        hourlyLabels.appendChild(timeLabel);
+      });
+      
+      hourlyForecast.classList.remove('hidden');
+      hourlyForecast.classList.add('fade-in');
+    }
+    
+    function showLoading() {
+      weatherDisplay.innerHTML = `
+        <div class="text-center py-8">
+          <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+          <p class="text-lg">Loading weather data...</p>
+        </div>
+      `;
+      
+      forecastDisplay.innerHTML = `
+        <div class="col-span-full text-center py-8">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+          <p>Loading forecast data...</p>
+        </div>
+      `;
+      
+      hourlyForecast.classList.add('hidden');
+      hideMessage();
+    }
+    
+    function showMessage(message, type = 'info') {
+      messageBox.innerHTML = `
+        <div class="flex items-center justify-center gap-2">
+          <i class="fas ${type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+          ${message}
+        </div>
+      `;
+      messageBox.className = `p-4 rounded-lg text-center font-medium ${
+        type === 'error' ? 'bg-red-500/20 text-red-200' : 'bg-blue-500/20 text-blue-200'
+      } fade-in`;
+      messageBox.classList.remove('hidden');
+      
+      setTimeout(hideMessage, 5000);
+    }
+    
+    function hideMessage() {
+      messageBox.classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
